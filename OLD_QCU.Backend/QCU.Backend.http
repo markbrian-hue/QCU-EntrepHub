@@ -1,0 +1,6 @@
+@QCU.Backend_HostAddress = http://localhost:5278
+
+GET {{QCU.Backend_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
