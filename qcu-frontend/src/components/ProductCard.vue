@@ -4,6 +4,7 @@ import { useCartStore } from '../stores/cart';
 import { useToast } from "vue-toastification";
 
 const props = defineProps({ product: Object });
+const emit = defineEmits(['view']); // Signal to parent to open modal
 const cartStore = useCartStore();
 const toast = useToast();
 
@@ -14,39 +15,32 @@ const isVendor = computed(() => {
   return (user.role === 'VENDOR' || user.Role === 'VENDOR');
 });
 
-// Calculate how many of this specific item are already in the cart
 const quantityInCart = computed(() => {
   const item = cartStore.items.find(i => i.productId === props.product.productId);
   return item ? item.quantity : 0;
 });
 
-// Check if we hit the limit
-const isMaxReached = computed(() => {
-  return quantityInCart.value >= props.product.stockQuantity;
-});
-
-const isSoldOut = computed(() => {
-  return props.product.stockQuantity <= 0;
-});
+const isSoldOut = computed(() => props.product.stockQuantity <= 0);
 
 const formatPrice = (price) => {
   return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(price);
 }
 
-const handleAddToCart = () => {
-  if (isMaxReached.value) {
-    toast.warning("You have reached the maximum stock limit for this item.");
+// Quick Add (1 item)
+const handleQuickAdd = () => {
+  if (quantityInCart.value >= props.product.stockQuantity) {
+    toast.warning("Max stock reached.");
     return;
   }
-  cartStore.addToCart(props.product);
-  toast.success(`${props.product.name} added to cart!`);
+  cartStore.addToCart(props.product, 1);
+  toast.success(`${props.product.name} added!`);
 }
 </script>
 
 <template>
-  <div class="group bg-white border border-gray-200 hover:border-yellow-500 transition-all duration-300 flex flex-col h-full shadow-sm hover:shadow-md">
+  <div class="group bg-white border border-gray-200 hover:border-yellow-500 transition-all duration-300 flex flex-col h-full shadow-sm hover:shadow-md relative">
     
-    <div class="h-64 w-full relative overflow-hidden bg-gray-100">
+    <div @click="emit('view', product)" class="h-64 w-full relative overflow-hidden bg-gray-100 cursor-pointer">
       <img 
         :src="product.imageUrl || 'https://via.placeholder.com/300?text=No+Image'" 
         alt="Product" 
@@ -58,7 +52,11 @@ const handleAddToCart = () => {
         {{ product.category }}
       </span>
 
-      <div v-if="isSoldOut" class="absolute inset-0 bg-black/50 flex items-center justify-center">
+      <div class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+        <span class="bg-white text-black px-4 py-2 font-bold text-xs uppercase tracking-widest shadow-lg">View Details</span>
+      </div>
+
+      <div v-if="isSoldOut" class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-100">
         <span class="bg-red-600 text-white px-4 py-1 font-black uppercase tracking-widest text-sm transform -rotate-12 border-2 border-white">
           Sold Out
         </span>
@@ -67,7 +65,7 @@ const handleAddToCart = () => {
 
     <div class="p-5 flex flex-col flex-grow">
       
-      <h3 class="font-bold text-lg text-gray-900 leading-tight mb-1 group-hover:text-yellow-600 transition-colors">
+      <h3 @click="emit('view', product)" class="font-bold text-lg text-gray-900 leading-tight mb-1 group-hover:text-yellow-600 transition-colors cursor-pointer">
         {{ product.name }}
       </h3>
       
@@ -87,18 +85,13 @@ const handleAddToCart = () => {
         
         <div v-if="!isVendor">
           <button 
-            @click="handleAddToCart"
-            :disabled="isMaxReached || isSoldOut"
-            class="px-5 py-2 text-xs font-bold uppercase tracking-widest transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            :class="isMaxReached || isSoldOut ? 'bg-gray-300 text-gray-500' : 'bg-black text-white hover:bg-yellow-500 hover:text-black'"
+            @click.stop="handleQuickAdd"
+            :disabled="isSoldOut"
+            class="px-5 py-2 text-xs font-bold uppercase tracking-widest transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed bg-black text-white hover:bg-yellow-500 hover:text-black"
           >
-            {{ isSoldOut ? 'Sold Out' : (isMaxReached ? 'Max Added' : 'Add') }}
+            Add +
           </button>
         </div>
-        
-        <span v-else class="text-xs text-gray-400 font-medium italic border border-gray-200 px-2 py-1">
-          Seller View
-        </span>
       </div>
     </div>
   </div>

@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from "vue-toastification";
 import api from '../axios';
+import { supabase } from '../supabase'; // Import the client
 
 const router = useRouter();
 const toast = useToast();
@@ -17,50 +18,133 @@ const role = ref('BUYER');
 const shopName = ref('');
 const idCardFile = ref(null);
 
-const toggleMode = () => { isLogin.value = !isLogin.value; };
+const toggleMode = () => { 
+  isLogin.value = !isLogin.value;
+  // Clear fields when switching
+  studentNumber.value = '';
+  password.value = '';
+};
 
 const handleFileUpload = (event) => {
   idCardFile.value = event.target.files[0];
+};
+
+// --- NEW: STUDENT ID FORMATTER ---
+const formatStudentID = (event) => {
+  // 1. Get current value
+  let val = event.target.value;
+  
+  // 2. Remove all non-numeric characters (Letters, symbols)
+  val = val.replace(/\D/g, '');
+
+  // 3. Limit to 6 digits max (since 00-0000 has 6 numbers)
+  if (val.length > 6) val = val.slice(0, 6);
+
+  // 4. Insert the hyphen after the 2nd number
+  if (val.length > 2) {
+    val = val.slice(0, 2) + '-' + val.slice(2);
+  }
+
+  // 5. Update the variable
+  studentNumber.value = val;
 };
 
 const handleSubmit = async () => {
   loading.value = true;
   try {
     if (isLogin.value) {
-      const response = await api.post('/users/login', {
-        studentNumber: studentNumber.value,
-        password: password.value
+      // --- SUPABASE LOGIN ---
+      // We use email/password for Supabase. 
+      // NOTE: You might need to change your form to ask for Email instead of Student ID for the Auth part,
+      // OR we can create a "Fake Email" like studentID@qcu.edu.ph behind the scenes.
+      
+      const email = `${studentNumber.value}@qcu.edu.ph`; // Auto-generate email
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password.value,
       });
-      localStorage.setItem('user', JSON.stringify(response.data));
-      toast.success(`Welcome back, ${response.data.fullName}!`);
-      if (response.data.role === 'VENDOR') {
-        router.push('/vendor');
-      } else {
-        router.push('/');
-      }
+
+      if (error) throw error;
+
+      // Fetch User Details from our custom table
+      const { data: profile } = await supabase
+        .from('users')
+        .select(`*, vendors(*)`) // Join vendors table
+        .eq('id', data.user.id)
+        .single();
+
+      // Format data to match your app's structure
+      const sessionUser = {
+        userId: profile.id,
+        fullName: profile.full_name,
+        role: profile.role,
+        studentNumber: profile.student_number,
+        VendorId: profile.vendors?.[0]?.vendor_id || null,
+        ShopName: profile.vendors?.[0]?.shop_name || null,
+        VendorStatus: profile.vendors?.[0]?.verification_status || null
+      };
+
+      localStorage.setItem('user', JSON.stringify(sessionUser));
+      toast.success(`Welcome back, ${profile.full_name}!`);
+      
+      if (sessionUser.role === 'VENDOR') router.push('/vendor');
+      else router.push('/');
+
     } else {
-      if (role.value === 'BUYER' && !idCardFile.value) {
-        toast.warning("Buyers must upload a School ID.");
-        loading.value = false;
-        return;
+      // --- SUPABASE REGISTER ---
+      const email = `${studentNumber.value}@qcu.edu.ph`;
+
+      // 1. Create Auth User
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: email,
+        password: password.value,
+      });
+
+      if (authError) throw authError;
+
+      // 2. Upload ID Image (If Buyer)
+      let idCardUrl = null;
+      if (idCardFile.value) {
+        const fileName = `${Date.now()}_${idCardFile.value.name}`;
+        const { data: imgData, error: imgError } = await supabase.storage
+          .from('images')
+          .upload(fileName, idCardFile.value);
+        
+        if (imgError) throw imgError;
+        
+        // Get Public URL
+        const { data: publicUrl } = supabase.storage.from('images').getPublicUrl(fileName);
+        idCardUrl = publicUrl.publicUrl;
       }
-      const formData = new FormData();
-      formData.append('password', password.value);
-      formData.append('role', role.value);
+
+      // 3. Insert into 'users' table
+      const { error: dbError } = await supabase.from('users').insert({
+        id: authData.user.id, // Link to Auth
+        full_name: role.value === 'VENDOR' ? shopName.value : fullName.value,
+        student_number: role.value === 'VENDOR' ? shopName.value : studentNumber.value,
+        role: role.value,
+        id_card_image: idCardUrl
+      });
+
+      if (dbError) throw dbError;
+
+      // 4. If Vendor, Insert into 'vendors'
       if (role.value === 'VENDOR') {
-        formData.append('shopName', shopName.value);
-      } else {
-        formData.append('fullName', fullName.value);
-        formData.append('studentNumber', studentNumber.value);
-        if (idCardFile.value) formData.append('idCardImage', idCardFile.value);
+        await supabase.from('vendors').insert({
+          user_id: authData.user.id,
+          shop_name: shopName.value,
+          course_section: 'N/A',
+          is_open: false,
+          verification_status: 'PENDING'
+        });
       }
-      await api.post('/users/register', formData);
+
       toast.success('Registration successful! Please log in.');
-      isLogin.value = true; 
+      isLogin.value = true;
     }
   } catch (error) {
-    const msg = error.response?.data?.error || error.response?.data || "An error occurred.";
-    toast.error(msg);
+    toast.error(error.message || "Error");
   } finally {
     loading.value = false;
   }
@@ -117,7 +201,7 @@ const handleSubmit = async () => {
               
               <div v-if="!isLogin" class="grid grid-cols-2 gap-0 border border-gray-200 mb-6">
                 <button type="button" @click="role = 'BUYER'" :class="role === 'BUYER' ? 'bg-black text-yellow-500' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'" class="py-3 text-xs font-black uppercase tracking-widest transition-colors">Buyer</button>
-                <button type="button" @click="role = 'VENDOR'" :class="role === 'VENDOR' ? 'bg-black text-yellow-500' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'" class="py-3 text-xs font-black uppercase tracking-widest transition-colors">Vendor</button>
+                <button type="button" @click="role = 'VENDOR'" :class="role === 'VENDOR' ? 'bg-black text-yellow-500' : 'bg-gray-100 text-gray-500 hover:bg-gray-100'" class="py-3 text-xs font-black uppercase tracking-widest transition-colors">Vendor</button>
               </div>
 
               <div class="space-y-5">
