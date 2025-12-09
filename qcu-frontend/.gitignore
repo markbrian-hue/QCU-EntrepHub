@@ -27,4 +27,4 @@ coverage
 .eslintcache
 
 # SECURITY: Ignore the environment file
-.env
+.env 
