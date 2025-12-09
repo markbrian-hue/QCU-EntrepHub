@@ -15,10 +15,13 @@ onMounted(() => {
   const userData = localStorage.getItem('user');
   if (userData) {
     const user = JSON.parse(userData);
+    // Ensure vendors can't buy
     if (user.role === 'VENDOR' || user.Role === 'VENDOR') {
       toast.error("Vendors cannot make purchases.");
       router.push('/vendor');
     }
+    // LOAD CART DATA (Safety check)
+    cart.loadUserCart(user.userId || user.UserId);
   }
 });
 
@@ -40,10 +43,10 @@ const checkout = () => {
 
 const removeItem = (id, name) => {
   cart.removeFromCart(id);
-  toast.success(`${name} removed from cart.`);
+  toast.success(`${name} removed.`);
 };
 
-// FIX: Button Handlers
+// Button Handlers
 const increase = (item) => {
   const success = cart.increaseItemQty(item.productId);
   if (!success) {
@@ -61,7 +64,7 @@ const decrease = (item) => {
     
     <div class="mb-8 border-b border-gray-200 pb-4 flex items-end justify-between">
         <h1 class="text-4xl font-black text-gray-900 uppercase tracking-tighter">Shopping Bag</h1>
-        <p class="text-sm font-bold text-gray-500 uppercase tracking-widest">{{ cart.totalItems }} Items</p>
+        <p class="text-sm font-bold text-gray-500 uppercase tracking-widest">{{ cart.totalItems }} Unique Items</p>
     </div>
 
     <div v-if="cart.items.length === 0" class="text-center py-24 border-2 border-dashed border-gray-300 bg-gray-50">
@@ -80,10 +83,10 @@ const decrease = (item) => {
       
       <div class="lg:col-span-2 space-y-0 border-t border-gray-200">
         <transition-group name="list" tag="div">
-          <div v-for="item in cart.items" :key="item.productId" class="flex items-start gap-6 bg-white p-6 border-b border-gray-200 transition group relative">
+          <div v-for="item in cart.items" :key="item.productId" class="flex items-start gap-6 bg-white p-6 border-b border-gray-200 hover:bg-yellow-50/20 transition group relative">
             
             <div class="w-32 h-32 flex-shrink-0 bg-gray-100 border border-gray-300">
-              <img :src="item.imageUrl || 'https://via.placeholder.com/150'" class="w-full h-full object-cover" />
+              <img :src="item.imageUrl || 'https://via.placeholder.com/150'" class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition duration-500" />
             </div>
             
             <div class="flex-1 min-w-0 flex flex-col h-32 justify-between">
@@ -93,28 +96,28 @@ const decrease = (item) => {
                     <p class="text-yellow-600 font-black text-lg">{{ formatPrice(item.price * item.quantity) }}</p>
                 </div>
                 <p class="text-xs text-gray-500 mt-2 uppercase tracking-wide font-bold">
-                  <span class="text-gray-900">{{ item.vendorName }}</span>
+                  Sold by: <span class="text-gray-900">{{ item.vendorName }}</span>
                 </p>
               </div>
 
               <div class="flex justify-between items-end">
                 
-                <div class="flex items-center border border-gray-300 bg-white">
+                <div class="flex items-center border-2 border-gray-200 bg-white">
                   <button 
                     @click="decrease(item)" 
-                    class="px-3 py-1 hover:bg-gray-100 active:bg-gray-200 text-gray-600 font-bold disabled:opacity-50"
+                    class="px-3 py-1 hover:bg-black hover:text-white text-gray-600 font-bold disabled:opacity-50 disabled:hover:bg-white disabled:hover:text-gray-400 transition"
                     :disabled="item.quantity <= 1"
                   >-</button>
-                  <span class="px-3 py-1 font-black text-sm w-10 text-center border-l border-r border-gray-200 bg-gray-50">
+                  <span class="px-4 py-1 font-black text-sm w-12 text-center border-l-2 border-r-2 border-gray-200 bg-gray-50">
                     {{ item.quantity }}
                   </span>
                   <button 
                     @click="increase(item)" 
-                    class="px-3 py-1 hover:bg-gray-100 active:bg-gray-200 text-gray-600 font-bold"
+                    class="px-3 py-1 hover:bg-black hover:text-white text-gray-600 font-bold transition"
                   >+</button>
                 </div>
                 
-                <button @click="removeItem(item.productId, item.name)" class="text-xs text-gray-400 hover:text-red-600 underline uppercase tracking-wider font-bold transition">
+                <button @click="removeItem(item.productId, item.name)" class="text-xs text-gray-400 hover:text-red-600 underline uppercase tracking-wider font-bold transition flex items-center gap-1">
                   Remove
                 </button>
               </div>
@@ -146,6 +149,7 @@ const decrease = (item) => {
           <button @click="checkout" class="w-full bg-black text-white py-4 font-bold uppercase tracking-widest hover:bg-yellow-500 hover:text-black transition-all shadow-md active:translate-y-0.5">
             Checkout
           </button>
+          <p class="text-[10px] text-gray-400 text-center mt-4 uppercase tracking-wide font-bold">Secure Transactions Only</p>
         </div>
       </div>
 

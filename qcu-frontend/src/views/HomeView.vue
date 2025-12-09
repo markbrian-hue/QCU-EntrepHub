@@ -124,8 +124,8 @@ onMounted(() => {
           <div class="flex flex-col md:flex-row justify-between items-end gap-6">
             <div class="space-y-2">
               <h2 class="text-xs font-bold text-yellow-600 uppercase tracking-widest bg-yellow-100 px-2 py-1 inline-block">QCU Official Marketplace</h2>
-              <h1 class="text-4xl font-black text-gray-900 tracking-tight uppercase">Student Entrep Hub</h1>
-              <p class="text-gray-500 max-w-lg text-sm font-medium">Discover verified products from BS Entrepreneurship students.</p>
+              <h1 class="text-4xl font-black text-gray-900 tracking-tight uppercase">Student Food Hub</h1>
+              <p class="text-gray-500 max-w-lg text-sm font-medium">Discover verified products from entrepreneurs students.</p>
             </div>
             
             <div class="w-full md:w-auto relative group">
@@ -170,7 +170,7 @@ onMounted(() => {
 
       <footer class="w-full bg-gray-900 text-gray-400 py-12 border-t-4 border-yellow-500 mt-auto">
         <div class="container mx-auto px-6 text-center text-xs uppercase tracking-widest font-bold">
-            <p>&copy; 2025 QCU Entrep Hub</p>
+            <p>&copy; 2025 QCU Food Hub</p>
         </div>
     </footer>
 

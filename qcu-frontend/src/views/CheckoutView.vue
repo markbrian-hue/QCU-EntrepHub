@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue';
 import { useCartStore } from '../stores/cart';
 import { useRouter } from 'vue-router';
 import { useToast } from "vue-toastification";
-import api from '../axios';
+import { supabase } from '../supabase'; // Import Supabase
 
 const cart = useCartStore();
 const router = useRouter();
@@ -43,27 +43,48 @@ const placeOrder = async () => {
   loading.value = true;
 
   try {
-    // Prepare Payload
-    const orderData = {
-      customerUserId: user.value.userId || user.value.UserId, 
-      vendorId: cart.items[0].vendorId, 
-      deliveryLocation: deliveryLocation.value,
-      paymentMethod: paymentMethod.value,
-      items: cart.items.map(item => ({
-        productId: item.productId,
-        quantity: item.quantity
-      }))
-    };
+    const customerId = user.value.userId;
+    // Assume all items belong to same vendor for this checkout (simplified)
+    // or take the first item's vendor
+    const vendorId = cart.items[0].vendorId; 
+    const totalAmount = cart.totalPrice;
 
-    // Send to API
-    const response = await api.post('/orders', orderData);
+    // 1. Insert Order
+    const { data: orderData, error: orderError } = await supabase
+      .from('orders')
+      .insert({
+        customer_id: customerId,
+        vendor_id: vendorId,
+        delivery_location: deliveryLocation.value,
+        payment_method: paymentMethod.value,
+        total_amount: totalAmount,
+        status: 'PENDING'
+      })
+      .select()
+      .single();
+
+    if (orderError) throw orderError;
+
+    const newOrderId = orderData.order_id;
+
+    // 2. Insert Order Items
+    const orderItems = cart.items.map(item => ({
+      order_id: newOrderId,
+      product_id: item.productId,
+      quantity: item.quantity,
+      price_at_order: item.price
+    }));
+
+    const { error: itemsError } = await supabase
+      .from('order_items')
+      .insert(orderItems);
+
+    if (itemsError) throw itemsError;
 
     // Success
-    toast.success(`Order #${response.data.orderId} placed successfully!`);
+    toast.success(`Order #${newOrderId} placed successfully!`);
     cart.clearCart(); 
-    router.push('/vendor'); // Redirect to dashboard or home, or keep at home. Usually home for buyers.
-    // Since buyers don't have a dashboard in this specific code yet, let's send to Home.
-    router.push('/');
+    router.push('/profile'); // Send them to profile to see status
 
   } catch (error) {
     console.error(error);
@@ -121,8 +142,8 @@ const placeOrder = async () => {
             <label class="block text-xs font-bold text-gray-900 uppercase mb-2">Payment Method</label>
             <div class="relative">
               <select v-model="paymentMethod" class="w-full p-4 bg-white border border-gray-300 focus:border-yellow-500 focus:ring-0 outline-none transition appearance-none cursor-pointer font-medium">
-                <option value="CASH_ON_PICKUP">Cash on Pickup / Delivery</option>
-                <option value="GCASH">GCash (Show proof upon meetup)</option>
+                <option value="CASH_ON_DELIVERY">Cash on Delivery</option>
+                <option value="GCASH">GCash on Delivery (Show proof upon meetup)</option>
               </select>
               <div class="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-500">
                 <svg class="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>

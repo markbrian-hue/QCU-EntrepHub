@@ -2,38 +2,37 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 
 export const useCartStore = defineStore('cart', () => {
-  // Default to a guest key
+  // Default to guest key initially
   const storageKey = ref('qcu_cart_guest');
   const items = ref([]);
 
-  // --- GETTERS ---
-  // FIX: Count array length for unique items, or sum quantity for total units
-  const totalItems = computed(() => items.value.length); 
-  const totalPrice = computed(() => items.value.reduce((sum, item) => sum + (item.price * item.quantity), 0));
-
-  // --- STORAGE HELPERS ---
-  const saveCart = () => {
-    localStorage.setItem(storageKey.value, JSON.stringify(items.value));
-  };
-
-  // Call this when App starts or User logs in
+  // Load cart based on the User ID provided
   const loadUserCart = (userId) => {
     if (userId) {
-      storageKey.value = `qcu_cart_user_${userId}`; // Unique key per user
+      storageKey.value = `qcu_cart_user_${userId}`; // Unique Key per User
     } else {
       storageKey.value = 'qcu_cart_guest';
     }
-
-    // Load data for this specific key
+    
+    // Load data from LocalStorage using the specific key
     const stored = localStorage.getItem(storageKey.value);
     items.value = stored ? JSON.parse(stored) : [];
   };
 
-  // Call this on Logout (Clears UI but keeps data in storage)
+  // Helper to save to the current key
+  const saveCart = () => {
+    localStorage.setItem(storageKey.value, JSON.stringify(items.value));
+  };
+
+  // Call this on Logout (Clears UI, but KEEPS the data in storage)
   const resetSession = () => {
     items.value = [];
     storageKey.value = 'qcu_cart_guest';
   };
+
+  // --- GETTERS ---
+  const totalItems = computed(() => items.value.length); 
+  const totalPrice = computed(() => items.value.reduce((sum, item) => sum + (item.price * item.quantity), 0));
 
   // --- ACTIONS ---
   const addToCart = (product, qty = 1) => {
@@ -83,7 +82,6 @@ export const useCartStore = defineStore('cart', () => {
     saveCart();
   };
 
-  // Used after checkout to actually delete items
   const clearCart = () => {
     items.value = [];
     saveCart();
@@ -93,8 +91,8 @@ export const useCartStore = defineStore('cart', () => {
     items, 
     totalItems, 
     totalPrice, 
-    loadUserCart,  // New
-    resetSession,  // New
+    loadUserCart, 
+    resetSession, 
     addToCart, 
     increaseItemQty, 
     decreaseItemQty, 
