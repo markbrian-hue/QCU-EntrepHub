@@ -26,5 +26,4 @@ coverage
 *.tsbuildinfo
 .eslintcache
 
-# SECURITY: Ignore the environment file
 .env 
