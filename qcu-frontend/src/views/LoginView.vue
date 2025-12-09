@@ -10,7 +10,6 @@ const toast = useToast();
 const isLogin = ref(true);
 const loading = ref(false);
 
-// REPLACED studentNumber with email
 const email = ref('');
 const fullName = ref('');
 const password = ref('');
@@ -18,11 +17,14 @@ const role = ref('BUYER');
 const shopName = ref('');
 const idCardFile = ref(null);
 
-const toggleMode = () => { 
+const toggleMode = () => {
   isLogin.value = !isLogin.value;
   // Clear fields
   email.value = '';
   password.value = '';
+  fullName.value = '';
+  shopName.value = '';
+  idCardFile.value = null;
 };
 
 const handleFileUpload = (event) => {
@@ -32,60 +34,61 @@ const handleFileUpload = (event) => {
 const handleSubmit = async () => {
   loading.value = true;
   try {
+    const normalizedEmail = email.value.trim().toLowerCase();
+
+    if (!normalizedEmail || !password.value) {
+      throw new Error('Email and password are required.');
+    }
+
     if (isLogin.value) {
       // --- LOGIN WITH EMAIL ---
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.value,
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
         password: password.value,
       });
+      if (authError) throw authError;
+      if (!authData?.user) throw new Error('Login succeeded but no user returned from auth.');
 
-      if (error) throw error;
-
-      // Fetch User Profile
-      const { data: profile } = await supabase
+      // Fetch User Profile (ensure RLS allows this select)
+      const { data: profile, error: profileError } = await supabase
         .from('users')
         .select(`*, vendors(*)`)
-        .eq('id', data.user.id)
+        .eq('id', authData.user.id)
         .single();
 
-      if (!profile) {
-        throw new Error("Profile not found. Please contact support.");
-      }
+      if (profileError) throw profileError;
+      if (!profile) throw new Error("Profile not found. Please contact support.");
 
       const sessionUser = {
         userId: profile.id,
         fullName: profile.full_name,
         role: profile.role,
-        studentNumber: profile.student_number, // This holds the email now
+        studentNumber: profile.student_number,
         VendorId: profile.vendors?.[0]?.vendor_id || null,
         ShopName: profile.vendors?.[0]?.shop_name || null,
-        VendorStatus: profile.vendors?.[0]?.verification_status || null
+        VendorStatus: profile.vendors?.[0]?.verification_status || null,
       };
 
       localStorage.setItem('user', JSON.stringify(sessionUser));
       toast.success(`Welcome back, ${profile.full_name}!`);
-      
+
       if (sessionUser.role === 'VENDOR') router.push('/vendor');
       else if (sessionUser.role === 'ADMIN') router.push('/admin');
       else router.push('/');
-
     } else {
       // --- REGISTER WITH EMAIL ---
-      
-      // Validation
       if (role.value === 'BUYER' && !idCardFile.value) {
         toast.warning("Buyers must upload a School ID.");
-        loading.value = false;
         return;
       }
 
       // 1. Create Auth User
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email.value,
+        email: normalizedEmail,
         password: password.value,
       });
-
       if (authError) throw authError;
+      if (!authData?.user) throw new Error('Registration succeeded but no auth user returned.');
 
       // 2. Upload ID Image (If Buyer)
       let idCardUrl = null;
@@ -93,43 +96,45 @@ const handleSubmit = async () => {
         const fileName = `${Date.now()}_${idCardFile.value.name}`;
         const { error: imgError } = await supabase.storage
           .from('images')
-          .upload(fileName, idCardFile.value);
-        
+          .upload(fileName, idCardFile.value, { cacheControl: '3600', upsert: false });
         if (imgError) throw imgError;
-        
-        const { data: publicUrl } = supabase.storage.from('images').getPublicUrl(fileName);
+
+        const { data: publicUrl, error: urlError } = supabase.storage.from('images').getPublicUrl(fileName);
+        if (urlError) throw urlError;
         idCardUrl = publicUrl.publicUrl;
       }
 
       // 3. Save User Data
-      // We save the 'email' into 'student_number' column to act as the ID
       const { error: dbError } = await supabase.from('users').insert({
         id: authData.user.id,
         full_name: role.value === 'VENDOR' ? shopName.value : fullName.value,
-        student_number: email.value, 
+        student_number: normalizedEmail,
         role: role.value,
-        id_card_image: idCardUrl
+        id_card_image: idCardUrl,
       });
-
       if (dbError) throw dbError;
 
       // 4. Create Vendor Profile
       if (role.value === 'VENDOR') {
-        await supabase.from('vendors').insert({
+        const { error: vendorError } = await supabase.from('vendors').insert({
           user_id: authData.user.id,
           shop_name: shopName.value,
           course_section: 'N/A',
           is_open: false,
-          verification_status: 'PENDING'
+          verification_status: 'PENDING',
         });
+        if (vendorError) throw vendorError;
       }
 
       toast.success('Registration successful! Please check your email and login.');
       isLogin.value = true;
+      // Clear form
+      toggleMode();
+      isLogin.value = true;
     }
   } catch (error) {
     console.error(error);
-    toast.error(error.message || "An error occurred.");
+    toast.error(error.message || "An error occurred. Check console for details.");
   } finally {
     loading.value = false;
   }
