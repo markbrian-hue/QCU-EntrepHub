@@ -5,6 +5,7 @@ import CheckoutView from '../views/CheckoutView.vue' // <--- Add Import
 import VendorDashboard from '../views/VendorDashboard.vue' // Import
 import ProfileView from '../views/ProfileView.vue'
 import AdminDashboard from '@/views/AdminDashboard.vue'
+import ResetPassword from '@/views/ResetPassword.vue'
 
 
 const router = createRouter({
@@ -41,10 +42,16 @@ const router = createRouter({
   name: 'profile',
   component: ProfileView
 },
+
 {
   path: '/admin',
   name: 'admin',
   component: AdminDashboard
+},
+{
+  path: '/reset-password',
+  name: 'reset-password',
+  component: ResetPassword
 }
   ]
 })

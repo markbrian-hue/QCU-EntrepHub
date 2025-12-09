@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue';
 import { useCartStore } from '../stores/cart';
 import { useRouter } from 'vue-router';
 import { useToast } from "vue-toastification";
-import { supabase } from '../supabase'; // Import Supabase
+import { supabase } from '../supabase';
 
 const cart = useCartStore();
 const router = useRouter();
@@ -11,14 +11,12 @@ const toast = useToast();
 const user = ref(null);
 const loading = ref(false);
 
-// Form Data
 const deliveryLocation = ref('');
 const paymentMethod = ref('CASH_ON_PICKUP');
 
 const formatPrice = (price) => 
   new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(price);
 
-// Load user from storage
 onMounted(() => {
   const userData = localStorage.getItem('user');
   if (!userData) {
@@ -28,7 +26,6 @@ onMounted(() => {
   }
   user.value = JSON.parse(userData);
 
-  // Redirect if cart is empty
   if (cart.items.length === 0) {
     router.push('/');
   }
@@ -41,15 +38,11 @@ const placeOrder = async () => {
   }
 
   loading.value = true;
-
   try {
     const customerId = user.value.userId;
-    // Assume all items belong to same vendor for this checkout (simplified)
-    // or take the first item's vendor
     const vendorId = cart.items[0].vendorId; 
     const totalAmount = cart.totalPrice;
 
-    // 1. Insert Order
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
       .insert({
@@ -67,7 +60,6 @@ const placeOrder = async () => {
 
     const newOrderId = orderData.order_id;
 
-    // 2. Insert Order Items
     const orderItems = cart.items.map(item => ({
       order_id: newOrderId,
       product_id: item.productId,
@@ -81,11 +73,9 @@ const placeOrder = async () => {
 
     if (itemsError) throw itemsError;
 
-    // Success
     toast.success(`Order #${newOrderId} placed successfully!`);
     cart.clearCart(); 
-    router.push('/profile'); // Send them to profile to see status
-
+    router.push('/profile');
   } catch (error) {
     console.error(error);
     toast.error("Failed to place order. Please try again.");
@@ -96,27 +86,23 @@ const placeOrder = async () => {
 </script>
 
 <template>
-  <div class="max-w-3xl mx-auto py-12 px-6 font-sans">
-    
-    <div class="mb-10 border-b-4 border-yellow-500 pb-4">
-      <h1 class="text-4xl font-black text-gray-900 uppercase tracking-tighter">Checkout</h1>
-      <p class="text-gray-500 mt-2">Complete your purchase securely.</p>
+  <div class="max-w-3xl mx-auto py-10 sm:py-12 px-4 sm:px-6 font-sans space-y-8">
+    <div class="mb-2 sm:mb-4 border-b-4 border-yellow-500 pb-3">
+      <h1 class="text-3xl sm:text-4xl font-black text-gray-900 uppercase tracking-tighter">Checkout</h1>
+      <p class="text-gray-500 mt-1 text-sm">Complete your purchase securely.</p>
     </div>
 
-    <div class="grid md:grid-cols-3 gap-8">
-      
+    <div class="grid md:grid-cols-3 gap-6 sm:gap-8">
       <div class="md:col-span-1 md:order-2">
-        <div class="bg-gray-50 p-6 border border-gray-200 sticky top-24">
-          <h3 class="font-bold text-lg text-gray-900 uppercase mb-4 tracking-wide border-b border-gray-300 pb-2">Summary</h3>
-          
-          <div class="space-y-3 mb-4">
+        <div class="bg-gray-50 p-5 sm:p-6 border border-gray-200 rounded sticky top-20 space-y-3">
+          <h3 class="font-bold text-lg text-gray-900 uppercase mb-2 tracking-wide border-b border-gray-300 pb-2">Summary</h3>
+          <div class="space-y-3">
             <div v-for="item in cart.items" :key="item.productId" class="flex justify-between text-sm text-gray-600">
               <span><span class="font-bold text-gray-900">{{ item.quantity }}x</span> {{ item.name }}</span>
               <span>{{ formatPrice(item.price * item.quantity) }}</span>
             </div>
           </div>
-          
-          <div class="border-t border-gray-300 pt-4 flex justify-between items-center">
+          <div class="border-t border-gray-300 pt-3 flex justify-between items-center">
             <span class="font-bold text-gray-900 uppercase">Total</span>
             <span class="text-xl font-black text-yellow-600">{{ formatPrice(cart.totalPrice) }}</span>
           </div>
@@ -125,23 +111,22 @@ const placeOrder = async () => {
 
       <div class="md:col-span-2 md:order-1">
         <form @submit.prevent="placeOrder" class="space-y-6">
-          
           <div>
-            <label class="block text-xs font-bold text-gray-900 uppercase mb-2">Delivery / Pickup Location</label>
+            <label class="block text-[11px] sm:text-xs font-bold text-gray-900 uppercase mb-2">Delivery / Pickup Location</label>
             <input 
               v-model="deliveryLocation" 
               type="text" 
               placeholder="e.g. Room 305, TechVoc Lobby, or Near Guard House" 
-              class="w-full p-4 bg-white border border-gray-300 focus:border-yellow-500 focus:ring-0 outline-none transition placeholder:text-gray-400 font-medium"
+              class="w-full p-4 bg-white border border-gray-300 focus:border-yellow-500 focus:ring-0 outline-none transition placeholder:text-gray-400 font-medium rounded"
               required
             />
-            <p class="text-xs text-gray-400 mt-2 uppercase tracking-wide">Specify a clear meet-up point within QCU.</p>
+            <p class="text-[11px] text-gray-400 mt-2 uppercase tracking-wide">Specify a clear meet-up point within QCU.</p>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-gray-900 uppercase mb-2">Payment Method</label>
+            <label class="block text-[11px] sm:text-xs font-bold text-gray-900 uppercase mb-2">Payment Method</label>
             <div class="relative">
-              <select v-model="paymentMethod" class="w-full p-4 bg-white border border-gray-300 focus:border-yellow-500 focus:ring-0 outline-none transition appearance-none cursor-pointer font-medium">
+              <select v-model="paymentMethod" class="w-full p-4 bg-white border border-gray-300 focus:border-yellow-500 focus:ring-0 outline-none transition appearance-none cursor-pointer font-medium rounded">
                 <option value="CASH_ON_DELIVERY">Cash on Delivery</option>
                 <option value="GCASH">GCash on Delivery (Show proof upon meetup)</option>
               </select>
@@ -154,14 +139,12 @@ const placeOrder = async () => {
           <button 
             type="submit" 
             :disabled="loading"
-            class="w-full bg-black text-white py-4 font-bold uppercase tracking-widest hover:bg-yellow-500 hover:text-black transition-all shadow-lg active:translate-y-0.5 disabled:opacity-70 mt-4"
+            class="w-full bg-black text-white py-4 font-bold uppercase tracking-widest hover:bg-yellow-500 hover:text-black transition-all shadow-lg active:translate-y-0.5 disabled:opacity-70 rounded mt-2"
           >
             {{ loading ? 'Processing Order...' : 'Confirm Order' }}
           </button>
-
         </form>
       </div>
-
     </div>
   </div>
 </template>
